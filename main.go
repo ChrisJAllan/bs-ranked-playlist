@@ -1,7 +1,8 @@
 package main
 
 import (
-	"compress/gzip"
+	"archive/zip"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -14,30 +15,26 @@ import (
 )
 
 const (
-	RANKED_URL = "https://cdn.wes.cloud/beatstar/bssb/v2-all.json.gz"
+	RANKED_URL = "https://raw.githubusercontent.com/andruzzzhka/BeatSaberScrappedData/master/combinedScrappedData.zip"
 )
 
 type RankedEntry struct {
-	Bpm           int               `json:"bpm"`
-	Diffs         []RankedEntryDiff `json:"diffs"`
-	DownVotes     int               `json:"downVotes"`
-	DownloadCount int               `json:"downloadCount"`
-	Heat          float64           `json:"heat"`
-	Key           string            `json:"key"`
-	Mapper        string            `json:"mapper"`
-	Rating        float64           `json:"rating"`
-	Song          string            `json:"song"`
-	UpVotes       int               `json:"upVotes"`
+	Bpm           float64           `json:"Bpm"`
+	Diffs         []RankedEntryDiff `json:"Diffs"`
+	DownVotes     int               `json:"Downvotes"`
+	DownloadCount int               `json:"Downloads"`
+	Key           string            `json:"Key"`
+	Hash          string            `json:"Hash"`
+	Mapper        string            `json:"LevelAuthorName"`
+	Song          string            `json:"SongName"`
+	UpVotes       int               `json:"Upvotes"`
 }
 
 type RankedEntryDiff struct {
-	Pp     float64 `json:"pp,string"`
-	Star   float64 `json:"star,string"`
-	Scores int     `json:"scores,string"`
-	Diff   string  `json:"diff"`
-	Type   int     `json:"type"`
-	Len    int     `json:"len"`
-	Njs    int     `json:"njs"`
+	Star   float64 `json:"Stars"`
+	Diff   string  `json:"Diff"`
+	Type   string  `json:"Char"`
+	Njs    float32 `json:"Njs"`
 }
 
 type Playlist struct {
@@ -78,26 +75,25 @@ func main() {
 		}
 	}
 
-	characteristicNames := []string{"Unknown", "Standard", "OneSaber", "NoArrows", "Lightshow", "Degree90", "Degree360", "Lawless"}
-
 	entries, err := downloadRankedList()
 	if err != nil {
 		panic(err)
 	}
-
+/*
 	pps := []float64{200, 300, 400, 500}
 	songByPP := make(map[float64]map[string]*PlaylistSong)
 	for _, pp := range pps {
 		songByPP[pp] = make(map[string]*PlaylistSong, 0)
 	}
-
+*/
 	songByStar := make(map[int]map[string]*PlaylistSong)
-	for hash, entry := range entries {
+	for _, entry := range entries {
 		for _, diff := range entry.Diffs {
 			if diff.Star == 0 {
 				continue
 			}
 			star := int(math.Trunc(diff.Star))
+			hash := entry.Hash
 
 			if _, ok := songByStar[star]; !ok {
 				songByStar[star] = make(map[string]*PlaylistSong, 0)
@@ -111,11 +107,7 @@ func main() {
 				songByStar[star][hash] = song
 			}
 
-			if diff.Type > len(characteristicNames) -1 {
-				continue
-			}
-
-			characteristicName := characteristicNames[diff.Type]
+			characteristicName := diff.Type
 			diffName := diff.Diff
 			if diffName == "Expert+" {
 				diffName = "ExpertPlus"
@@ -125,7 +117,7 @@ func main() {
 				Name:           diffName,
 			})
 		}
-
+/*
 		for _, pp := range pps {
 			for _, diff := range entry.Diffs {
 				if diff.Pp >= pp {
@@ -156,6 +148,7 @@ func main() {
 				}
 			}
 		}
+*/
 	}
 
 	// by star
@@ -170,12 +163,12 @@ func main() {
 			songs = append(songs, s)
 		}
 
-		of := fmt.Sprintf("%s/ranked_star_%02d.json", outputDir, star)
+		of := fmt.Sprintf("%s/ranked_star_%02d.bplist", outputDir, star)
 		if err := writePlaylist(of, fmt.Sprintf("Ranked Songs ★%d", star), "", image, songs); err != nil {
 			panic(err)
 		}
 	}
-
+/*
 	// by performance point
 	for pp, songMap := range songByPP {
 		image, err := getImageByPP(imageDir, int(pp))
@@ -188,22 +181,25 @@ func main() {
 			songs = append(songs, s)
 		}
 
-		of := fmt.Sprintf("%s/ranked_pp_%02d.json", outputDir, int(pp))
+		of := fmt.Sprintf("%s/ranked_pp_%02d.bplist", outputDir, int(pp))
 		if err := writePlaylist(of, fmt.Sprintf("Ranked Songs %dpp+", int(pp)), "", image, songs); err != nil {
 			panic(err)
 		}
 	}
+*/
 }
 
-func downloadRankedList() (map[string]RankedEntry, error) {
+func downloadRankedList() ([]RankedEntry, error) {
 	log.Printf("Downloading %s...\n", RANKED_URL)
 	req, err := http.NewRequest("GET", RANKED_URL, nil)
 	if err != nil {
+		panic(err)
 		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		panic(err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -211,14 +207,26 @@ func downloadRankedList() (map[string]RankedEntry, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("got response code %d: %w", resp.StatusCode, err)
 	}
-
-	reader, err := gzip.NewReader(resp.Body)
+	
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Fatal(err)
+	}
+	
+	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	
+	reader, err := zipReader.File[0].Open()
+	if err != nil {
+		panic(err)
 		return nil, err
 	}
 
-	var entries map[string]RankedEntry
+	var entries []RankedEntry
 	if err := json.NewDecoder(reader).Decode(&entries); err != nil {
+		panic(err)
 		return nil, err
 	}
 

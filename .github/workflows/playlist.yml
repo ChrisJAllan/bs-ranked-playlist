@@ -23,9 +23,9 @@ jobs:
       run: |
         set -x
         cd dist
-        zip -r ranked_all.zip ./*.json
+        zip -r ranked_all.zip ./*.bplist
         assets=()
-        for asset in ./*.json; do
+        for asset in ./*.bplist; do
           assets+=("-a" "$asset")
         done
         assets+=("-a" "ranked_all.zip")
