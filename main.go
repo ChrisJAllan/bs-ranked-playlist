@@ -16,6 +16,7 @@ import (
 
 const (
 	RANKED_URL = "https://raw.githubusercontent.com/andruzzzhka/BeatSaberScrappedData/master/combinedScrappedData.zip"
+	UPDATE_URL = "https://github.com/ChrisJAllan/bs-ranked-playlist/releases/latest/download/"
 )
 
 type RankedEntry struct {
@@ -41,6 +42,7 @@ type Playlist struct {
 	Title       string         `json:"playlistTitle"`
 	Author      string         `json:"playlistAuthor"`
 	Description string         `json:"playlistDescription"`
+	CustomData  map[string]string `json:"customData"`
 	Songs       []*PlaylistSong `json:"songs"`
 	Image       string         `json:"image,omitempty"`
 }
@@ -163,8 +165,8 @@ func main() {
 			songs = append(songs, s)
 		}
 
-		of := fmt.Sprintf("%s/ranked_star_%02d.bplist", outputDir, star)
-		if err := writePlaylist(of, fmt.Sprintf("Ranked Songs ★%d", star), "", image, songs); err != nil {
+		of := fmt.Sprintf("ranked_star_%02d.bplist", star)
+		if err := writePlaylist(outputDir, of, fmt.Sprintf("Ranked Songs ★%d", star), "", image, songs); err != nil {
 			panic(err)
 		}
 	}
@@ -283,11 +285,16 @@ func getImageByPP(imageDir string, pp int) (string, error) {
 	return "", nil
 }
 
-func writePlaylist(fileName string, title string, description string, image string, songs []*PlaylistSong) error {
+func writePlaylist(fileDir string, fileName string, title string, description string, image string, songs []*PlaylistSong) error {
+	customData := map[string]string{
+		"syncURL": fmt.Sprintf("%s%s", UPDATE_URL, fileName),
+	}
+	
 	playlist := Playlist{
 		Title:       title,
 		Author:      "",
 		Description: description,
+		CustomData:  customData,
 		Image:       image,
 		Songs:       songs,
 	}
@@ -296,9 +303,11 @@ func writePlaylist(fileName string, title string, description string, image stri
 	if err != nil {
 		return err
 	}
+	
+	outFile := fmt.Sprintf("%s/%s", fileDir, fileName);
 
-	log.Printf( "Writing %s... (%d songs)\n", fileName, len(songs))
-	if err := ioutil.WriteFile(fileName, b, 0644); err != nil {
+	log.Printf( "Writing %s... (%d songs)\n", outFile, len(songs))
+	if err := ioutil.WriteFile(outFile, b, 0644); err != nil {
 		return err
 	}
 	return nil
