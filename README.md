@@ -6,7 +6,7 @@
 
 Playlist of ranked scores for Beat Saber by difficulty level.
 
-This playlist is automatically updated every two hours.
+This playlist is automatically updated every day.
 
 Forked to use [BeatSaberScrappedData](https://github.com/andruzzzhka/BeatSaberScrappedData) as it seems to be more up-do-date.
 
