@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sort"
 )
 
 const (
@@ -42,7 +43,7 @@ type Playlist struct {
 	Title       string         `json:"playlistTitle"`
 	Author      string         `json:"playlistAuthor"`
 	Description string         `json:"playlistDescription"`
-	CustomData  map[string]string `json:"customData"`
+	CustomData  map[string]string `json:"customData,omitempty"`
 	Songs       []*PlaylistSong `json:"songs"`
 	Image       string         `json:"image,omitempty"`
 }
@@ -154,14 +155,20 @@ func main() {
 	}
 
 	// by star
-	for star, songMap := range songByStar {
+	keys := make([]int, 0, len(songByStar))
+	for k := range songByStar {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	
+	for _, star := range keys {
 		image, err := getImageByStar(imageDir, star)
 		if err != nil {
 			panic(err)
 		}
 
 		songs := make([]*PlaylistSong, 0)
-		for _, s := range songMap {
+		for _, s := range songByStar[star] {
 			songs = append(songs, s)
 		}
 
